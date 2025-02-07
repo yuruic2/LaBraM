@@ -755,6 +755,30 @@ class TUEVLoader(torch.utils.data.Dataset):
         Y = int(sample["label"][0] - 1)
         X = torch.FloatTensor(X)
         return X, Y
+
+
+################# YC - 2025/02/07: Add data loader for RCS data (sleep label and spike counts).
+class RCSLoader(torch.utils.data.Dataset):
+    def __init__(self, root, files, y_name, sampling_rate=200):
+        self.root = root
+        self.files = files
+        self.default_rate = 200
+        self.sampling_rate = sampling_rate
+        self.y_name = y_name
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, index):
+        sample = pickle.load(open(os.path.join(self.root, self.files[index]), "rb"))
+        X = sample["X"]
+        if self.sampling_rate != self.default_rate:
+            X = resample(X, 10 * self.sampling_rate, axis=-1)
+        Y = sample["y"][self.y_name]
+        if self.y_name == 'spike':
+            Y = torch.IntTensor(Y)
+        X = torch.FloatTensor(X)
+        return X, Y
     
 
 def prepare_TUEV_dataset(root):
@@ -799,6 +823,27 @@ def prepare_TUAB_dataset(root):
     train_dataset = TUABLoader(os.path.join(root, "train"), train_files)
     test_dataset = TUABLoader(os.path.join(root, "test"), test_files)
     val_dataset = TUABLoader(os.path.join(root, "val"), val_files)
+    print(len(train_files), len(val_files), len(test_files))
+    return train_dataset, test_dataset, val_dataset
+
+
+################# YC - 2025/02/07: Prepare dataset for RCS data (sleep label and spike counts).
+def prepare_RCS_dataset(root, y_name):
+    # set random seed
+    seed = 12345
+    np.random.seed(seed)
+
+    train_files = os.listdir(os.path.join(root, "train"))
+    np.random.shuffle(train_files)
+    val_files = os.listdir(os.path.join(root, "valid"))
+    test_files = os.listdir(os.path.join(root, "test"))
+
+    print(len(train_files), len(val_files), len(test_files))
+
+    # prepare training and test data loader
+    train_dataset = RCSLoader(os.path.join(root, "train"), train_files, y_name)
+    test_dataset = RCSLoader(os.path.join(root, "test"), test_files, y_name)
+    val_dataset = RCSLoader(os.path.join(root, "valid"), val_files, y_name)
     print(len(train_files), len(val_files), len(test_files))
     return train_dataset, test_dataset, val_dataset
 

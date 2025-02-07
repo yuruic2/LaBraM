@@ -225,6 +225,16 @@ def get_dataset(args):
         ch_names = [name.split(' ')[-1].split('-')[0] for name in ch_names]
         args.nb_classes = 6
         metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted"]
+    elif args.dataset == 'RCS-sleep':
+        train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("path/to/TUEV", 'sleep')
+        ch_names = ['LHPC', 'LANT', 'RHPC', 'RANT']
+        args.nb_classes = 3
+        metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted"]
+    # elif args.dataset == 'RCS-spike':
+    #     train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("path/to/TUEV", 'spike')
+    #     ch_names = ['LHPC', 'LANT', 'RHPC', 'RANT']
+    #     args.nb_classes = 3
+    #     metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted"]
     return train_dataset, test_dataset, val_dataset, ch_names, metrics
 
 
