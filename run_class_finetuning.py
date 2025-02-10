@@ -171,8 +171,8 @@ def get_args():
                         help='url used to set up distributed training')
 
     parser.add_argument('--enable_deepspeed', action='store_true', default=False)
-    parser.add_argument('--dataset', default='TUAB', type=str,
-                        help='dataset: TUAB | TUEV')
+    parser.add_argument('--dataset', default='RCS-sleep', type=str,
+                        help='dataset: TUAB | TUEV | RCS-sleep')
 
     known_args, _ = parser.parse_known_args()
 
@@ -226,12 +226,12 @@ def get_dataset(args):
         args.nb_classes = 6
         metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted"]
     elif args.dataset == 'RCS-sleep':
-        train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("path/to/TUEV", 'sleep')
+        train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("dataset/RCS_nostim/nostim_200Hz_10s/", 'sleep')
         ch_names = ['LHPC', 'LANT', 'RHPC', 'RANT']
         args.nb_classes = 3
         metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted"]
     # elif args.dataset == 'RCS-spike':
-    #     train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("path/to/TUEV", 'spike')
+    #     train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("dataset/RCS_nostim/nostim_200Hz_10s/", 'spike')
     #     ch_names = ['LHPC', 'LANT', 'RHPC', 'RANT']
     #     args.nb_classes = 3
     #     metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted"]
