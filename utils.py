@@ -838,13 +838,11 @@ def prepare_RCS_dataset(root, y_name):
     val_files = os.listdir(os.path.join(root, "valid"))
     test_files = os.listdir(os.path.join(root, "test"))
 
-    print(len(train_files), len(val_files), len(test_files))
-
     # prepare training and test data loader
     train_dataset = RCSLoader(os.path.join(root, "train"), train_files, y_name)
     test_dataset = RCSLoader(os.path.join(root, "test"), test_files, y_name)
     val_dataset = RCSLoader(os.path.join(root, "valid"), val_files, y_name)
-    print(len(train_files), len(val_files), len(test_files))
+   
     return train_dataset, test_dataset, val_dataset
 
 
