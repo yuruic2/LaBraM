@@ -7,6 +7,77 @@ from torch.utils.data import Dataset
 
 list_path = List[Path]
 
+# class SingleShockDataset(Dataset):
+#     """Read single hdf5 file regardless of label, subject, and paradigm."""
+#     def __init__(self, file_path: Path, window_size: int=200, stride_size: int=1, start_percentage: float=0, end_percentage: float=1):
+#         '''
+#         Extract datasets from file_path.
+
+#         param Path file_path: the path of target data
+#         param int window_size: the length of a single sample
+#         param int stride_size: the interval between two adjacent samples
+#         param float start_percentage: Index of percentage of the first sample of the dataset in the data file (inclusive)
+#         param float end_percentage: Index of percentage of end of dataset sample in data file (not included)
+#         '''
+#         self.__file_path = file_path
+#         self.__window_size = window_size
+#         self.__stride_size = stride_size
+#         self.__start_percentage = start_percentage
+#         self.__end_percentage = end_percentage
+
+#         self.__file = None
+#         self.__length = None
+#         self.__feature_size = None
+
+#         self.__subjects = []
+#         self.__global_idxes = []
+#         self.__local_idxes = []
+        
+#         self.__init_dataset()
+
+#     def __init_dataset(self) -> None:
+#         self.__file = h5py.File(str(self.__file_path), 'r')
+#         self.__subjects = [i for i in self.__file]
+
+#         global_idx = 0
+#         for subject in self.__subjects:
+#             self.__global_idxes.append(global_idx) # the start index of the subject's sample in the dataset
+#             subject_len = self.__file[subject]['eeg'].shape[1]
+#             # total number of samples
+#             total_sample_num = (subject_len-self.__window_size) // self.__stride_size + 1
+#             # cut out part of samples
+#             start_idx = int(total_sample_num * self.__start_percentage) * self.__stride_size 
+#             end_idx = int(total_sample_num * self.__end_percentage - 1) * self.__stride_size
+
+#             self.__local_idxes.append(start_idx)
+#             global_idx += (end_idx - start_idx) // self.__stride_size + 1
+#         self.__length = global_idx
+
+#         self.__feature_size = [i for i in self.__file[self.__subjects[0]]['eeg'].shape]
+#         self.__feature_size[1] = self.__window_size
+
+#     @property
+#     def feature_size(self):
+#         return self.__feature_size
+
+#     def __len__(self):
+#         return self.__length
+
+#     def __getitem__(self, idx: int):
+#         subject_idx = bisect.bisect(self.__global_idxes, idx) - 1
+#         item_start_idx = (idx - self.__global_idxes[subject_idx]) * self.__stride_size + self.__local_idxes[subject_idx]
+#         return self.__file[self.__subjects[subject_idx]]['eeg'][:, item_start_idx:item_start_idx+self.__window_size]
+    
+#     def free(self) -> None: 
+#         if self.__file:
+#             self.__file.close()
+#             self.__file = None
+    
+#     def get_ch_names(self):
+#         return self.__file[self.__subjects[0]]['eeg'].attrs['chOrder']
+
+
+################# YC - 2025/02/13: Prepare dataset from mefd file.
 class SingleShockDataset(Dataset):
     """Read single hdf5 file regardless of label, subject, and paradigm."""
     def __init__(self, file_path: Path, window_size: int=200, stride_size: int=1, start_percentage: float=0, end_percentage: float=1):
@@ -26,35 +97,37 @@ class SingleShockDataset(Dataset):
         self.__end_percentage = end_percentage
 
         self.__file = None
+        self.__channel_list = None
+        self.__freq = None
+        self.__meas_begin = None
+        self.__meas_end = None
+
+        self.__start_idx = None
         self.__length = None
         self.__feature_size = None
 
-        self.__subjects = []
-        self.__global_idxes = []
-        self.__local_idxes = []
-        
         self.__init_dataset()
 
     def __init_dataset(self) -> None:
-        self.__file = h5py.File(str(self.__file_path), 'r')
-        self.__subjects = [i for i in self.__file]
+        self.__file = MefReader(self.__file_path)
 
-        global_idx = 0
-        for subject in self.__subjects:
-            self.__global_idxes.append(global_idx) # the start index of the subject's sample in the dataset
-            subject_len = self.__file[subject]['eeg'].shape[1]
-            # total number of samples
-            total_sample_num = (subject_len-self.__window_size) // self.__stride_size + 1
-            # cut out part of samples
-            start_idx = int(total_sample_num * self.__start_percentage) * self.__stride_size 
-            end_idx = int(total_sample_num * self.__end_percentage - 1) * self.__stride_size
+        self.__channel_list = self.__file.channels
+        self.__freq = self.__file.get_property('fsamp', self.__channel_list[0])
 
-            self.__local_idxes.append(start_idx)
-            global_idx += (end_idx - start_idx) // self.__stride_size + 1
-        self.__length = global_idx
+        self.__meas_begin = self.__file.get_property('start_time', self.__channel_list[0])
+        self.__meas_end = self.__file.get_property('end_time', self.__channel_list[0])
 
-        self.__feature_size = [i for i in self.__file[self.__subjects[0]]['eeg'].shape]
-        self.__feature_size[1] = self.__window_size
+        subject_len = len(self.__file.get_data(self.__channel_list[0], self.__meas_begin, self.__meas_end))
+        # total number of samples
+        total_sample_num = (subject_len - self.__window_size) // self.__stride_size + 1
+        # cut out part of samples
+        start_idx = int(total_sample_num * self.__start_percentage) * self.__stride_size 
+        end_idx = int(total_sample_num * self.__end_percentage - 1) * self.__stride_size
+
+        self.__start_idx = start_idx
+        self.__length = (end_idx - start_idx) // self.__stride_size + 1
+
+        self.__feature_size = [len(self.__channel_list), self.__window_size]
 
     @property
     def feature_size(self):
@@ -64,17 +137,22 @@ class SingleShockDataset(Dataset):
         return self.__length
 
     def __getitem__(self, idx: int):
-        subject_idx = bisect.bisect(self.__global_idxes, idx) - 1
-        item_start_idx = (idx - self.__global_idxes[subject_idx]) * self.__stride_size + self.__local_idxes[subject_idx]
-        return self.__file[self.__subjects[subject_idx]]['eeg'][:, item_start_idx:item_start_idx+self.__window_size]
-    
+        data = np.zeros((len(self.__channel_list), self.__window_size))
+
+        data_begin = int(self.__meas_begin + (self.__start_idx + idx * __window_size) * 1e6 / self.__freq)
+        data_end = int(data_begin + self.__window_size * 1e6 / self.__freq)
+        for nch, elec in enumerate(self.__channel_list):
+            data[nch, :] = self.__file.get_data(elec, data_begin, data_end)
+
+        return data
+
     def free(self) -> None: 
         if self.__file:
             self.__file.close()
             self.__file = None
     
     def get_ch_names(self):
-        return self.__file[self.__subjects[0]]['eeg'].attrs['chOrder']
+        return self.__channel_list
 
 
 class ShockDataset(Dataset):
