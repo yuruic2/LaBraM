@@ -144,7 +144,8 @@ class SingleShockDataset(Dataset):
         for nch, elec in enumerate(self.__channel_list):
             data[nch, :] = self.__file.get_data(elec, data_begin, data_end)
 
-        return data
+        # this line convert uV to mV and scale data by 10 to have range (-1, 1)
+        return data / (10 * 1e3)
 
     def free(self) -> None: 
         if self.__file:
