@@ -229,7 +229,7 @@ def get_dataset(args):
         train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("../RCS_nostim/Sleep_spk_200Hz_10s/", 'sleep')
         # ch_names = ['LHPC', 'LANT', 'RHPC', 'RANT']
 
-        ch_names = ['T7', 'AF3', 'T8', 'AF4']
+        ch_names = ['FT7', 'FT9', 'FT8', 'FT10']
         args.nb_classes = 3
         metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted"]
     # elif args.dataset == 'RCS-spike':
