@@ -1,0 +1,6 @@
+__pycache__/
+data_processor/__pycache__/
+dataset_maker/shock/__pycache__/
+dataset_maker/shock/utils/__pycache__/
+.DS_Store
+dataset_maker/.DS_Store
