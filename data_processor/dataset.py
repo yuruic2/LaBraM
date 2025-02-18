@@ -4,6 +4,10 @@ from pathlib import Path
 from typing import List
 from torch.utils.data import Dataset
 
+import numpy as np
+import pandas as pd
+from mef_tools.io import MefReader
+
 
 list_path = List[Path]
 
@@ -91,18 +95,20 @@ class SingleShockDataset(Dataset):
         param float end_percentage: Index of percentage of end of dataset sample in data file (not included)
         '''
         self.__file_path = file_path
+        self.__idx_path = file_path.replace('.mefd', '.csv')
         self.__window_size = window_size
         self.__stride_size = stride_size
         self.__start_percentage = start_percentage
         self.__end_percentage = end_percentage
 
+        self.__subjects = []
+        self.__global_idxes = []
+        self.__local_idxes = []
+
         self.__file = None
         self.__channel_list = None
         self.__freq = None
-        self.__meas_begin = None
-        self.__meas_end = None
 
-        self.__start_idx = None
         self.__length = None
         self.__feature_size = None
 
@@ -110,22 +116,24 @@ class SingleShockDataset(Dataset):
 
     def __init_dataset(self) -> None:
         self.__file = MefReader(self.__file_path)
+        self.__idx_list = pd.read_csv(self.__idx_path)
 
         self.__channel_list = self.__file.channels
         self.__freq = self.__file.get_property('fsamp', self.__channel_list[0])
 
-        self.__meas_begin = self.__file.get_property('start_time', self.__channel_list[0])
-        self.__meas_end = self.__file.get_property('end_time', self.__channel_list[0])
+        global_idx = 0
+        for _, row in self.__idx_list.iterrows():
+            self.__global_idxes.append(global_idx) # the start index of the subject's sample in the dataset
+            subject_len = (row['end'] - row['start']) / 1e6 * self.__freq
+            # total number of samples
+            total_sample_num = (subject_len-self.__window_size) // self.__stride_size + 1
+            # cut out part of samples
+            start_idx = int(total_sample_num * self.__start_percentage) * self.__stride_size 
+            end_idx = int(total_sample_num * self.__end_percentage - 1) * self.__stride_size
 
-        subject_len = len(self.__file.get_data(self.__channel_list[0], self.__meas_begin, self.__meas_end))
-        # total number of samples
-        total_sample_num = (subject_len - self.__window_size) // self.__stride_size + 1
-        # cut out part of samples
-        start_idx = int(total_sample_num * self.__start_percentage) * self.__stride_size 
-        end_idx = int(total_sample_num * self.__end_percentage - 1) * self.__stride_size
-
-        self.__start_idx = start_idx
-        self.__length = (end_idx - start_idx) // self.__stride_size + 1
+            self.__local_idxes.append(start_idx)
+            global_idx += (end_idx - start_idx) // self.__stride_size + 1
+        self.__length = global_idx
 
         self.__feature_size = [len(self.__channel_list), self.__window_size]
 
@@ -137,12 +145,16 @@ class SingleShockDataset(Dataset):
         return self.__length
 
     def __getitem__(self, idx: int):
-        data = np.zeros((len(self.__channel_list), self.__window_size))
+        subject_idx = bisect.bisect(self.__global_idxes, idx) - 1
+        item_start_idx = (idx - self.__global_idxes[subject_idx]) * self.__stride_size + self.__local_idxes[subject_idx]
 
-        data_begin = int(self.__meas_begin + (self.__start_idx + idx * __window_size) * 1e6 / self.__freq)
-        data_end = int(data_begin + self.__window_size * 1e6 / self.__freq)
+        subject_start = self.__idx_list.iloc[subject_idx]['start']
+        item_start = int(subject_start + item_start_idx * 1e6 / self.__freq)
+        item_end = int(subject_start + (item_start_idx + self.__window_size) * 1e6 / self.__freq)
+
+        data = np.zeros((len(self.__channel_list), self.__window_size))
         for nch, elec in enumerate(self.__channel_list):
-            data[nch, :] = self.__file.get_data(elec, data_begin, data_end)
+            data[nch, :] = self.__file.get_data(elec, item_start, item_end)
 
         # this line convert uV to mV and scale data by 10 to have range (-1, 1)
         return data / (10 * 1e3)
