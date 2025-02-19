@@ -38,6 +38,8 @@ from sklearn.metrics import r2_score
 from sklearn.metrics import mean_squared_error
 from scipy.stats import pearsonr
 
+################ YC  - 2025/02/19: Add metrics for regression tasks.
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 standard_1020 = [
     'FP1', 'FPZ', 'FP2', 
@@ -757,7 +759,7 @@ class TUEVLoader(torch.utils.data.Dataset):
         return X, Y
 
 
-################# YC - 2025/02/07: Add data loader for RCS data (sleep label and spike counts).
+################ YC - 2025/02/07: Add data loader for RCS data (sleep label and spike counts).
 class RCSLoader(torch.utils.data.Dataset):
     def __init__(self, root, files, y_name, sampling_rate=200):
         self.root = root
@@ -778,6 +780,10 @@ class RCSLoader(torch.utils.data.Dataset):
         if self.y_name == 'spike':
             Y = torch.IntTensor(Y)
         X = torch.FloatTensor(X)
+
+        ################ YC - 2025/02/19: Scale data to mV and divide iEEG by 10.
+        X = X / (10 * 1e3)
+
         return X, Y
     
 
@@ -827,7 +833,7 @@ def prepare_TUAB_dataset(root):
     return train_dataset, test_dataset, val_dataset
 
 
-################# YC - 2025/02/07: Prepare dataset for RCS data (sleep label and spike counts).
+################ YC - 2025/02/07: Prepare dataset for RCS data (sleep label and spike counts).
 def prepare_RCS_dataset(root, y_name):
     # set random seed
     seed = 12345
@@ -863,7 +869,14 @@ def get_metrics(output, target, metrics, is_binary, threshold=0.5):
                 "roc_auc": 0.0,
             }
     else:
-        results = multiclass_metrics_fn(
-            target, output, metrics=metrics
-        )
+        ################ YC  - 2025/02/19: Add metrics for regression tasks.
+        if 'mse' in metrics or 'rmse' in metrics or 'mae' in metrics:
+            results = {"mse": mean_squared_error(target, output),
+                       "rmse": mean_squared_error(target, output, squared=False), 
+                       "mae": np.mean(np.abs(target - output)),
+                       "r2": r2_score(target, output)}
+        else:
+            results = multiclass_metrics_fn(
+                target, output, metrics=metrics
+            )
     return results

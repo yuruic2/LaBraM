@@ -130,6 +130,9 @@ def get_args():
     parser.add_argument('--disable_weight_decay_on_rel_pos_bias', action='store_true', default=False)
 
     # Dataset parameters
+    ################ YC - 2025/02/19: Add arguments for different fine-tuning datasets 
+    parser.add_argument('--task', default='classification', type=str,
+                        help='type of task: classification | regression')
     parser.add_argument('--nb_classes', default=0, type=int,
                         help='number of the classification types')
 
@@ -228,15 +231,15 @@ def get_dataset(args):
     elif args.dataset == 'RCS-sleep':
         train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("../RCS_nostim/Sleep_spk_200Hz_10s/", 'sleep')
         # ch_names = ['LHPC', 'LANT', 'RHPC', 'RANT']
-
         ch_names = ['FT7', 'FT9', 'FT8', 'FT10']
         args.nb_classes = 3
         metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted"]
-    # elif args.dataset == 'RCS-spike':
-    #     train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("dataset/RCS_nostim/nostim_200Hz_10s/", 'spike')
-    #     ch_names = ['LHPC', 'LANT', 'RHPC', 'RANT']
-    #     args.nb_classes = 3
-    #     metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted"]
+    elif args.dataset == 'RCS-spike':
+        train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("dataset/RCS_nostim/nostim_200Hz_10s/", 'spike')
+        # ch_names = ['LHPC', 'LANT', 'RHPC', 'RANT']
+        ch_names = ['FT7', 'FT9', 'FT8', 'FT10']
+        args.nb_classes = 4
+        metrics = ["mse", "rmse", "mae", "r2"]
     return train_dataset, test_dataset, val_dataset, ch_names, metrics
 
 
@@ -456,7 +459,10 @@ def main(args, ds_init):
         args.weight_decay, args.weight_decay_end, args.epochs, num_training_steps_per_epoch)
     print("Max WD = %.7f, Min WD = %.7f" % (max(wd_schedule_values), min(wd_schedule_values)))
 
-    if args.nb_classes == 1:
+    ################ YC - 2025/02/19: Add loss for regression tasks 
+    if args.task == 'regression':
+        criterion = torch.nn.MSELoss()
+    elif args.nb_classes == 1:
         criterion = torch.nn.BCEWithLogitsLoss()
     elif args.smoothing > 0.:
         criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
