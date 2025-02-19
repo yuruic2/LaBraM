@@ -778,7 +778,7 @@ class RCSLoader(torch.utils.data.Dataset):
             X = resample(X, 10 * self.sampling_rate, axis=-1)
         Y = sample["y"][self.y_name]
         if self.y_name == 'spike':
-            Y = torch.IntTensor(Y)
+            Y = torch.FloatTensor(Y)
         X = torch.FloatTensor(X)
 
         ################ YC - 2025/02/19: Scale data to mV and divide iEEG by 10.

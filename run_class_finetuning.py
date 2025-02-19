@@ -229,13 +229,13 @@ def get_dataset(args):
         args.nb_classes = 6
         metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted"]
     elif args.dataset == 'RCS-sleep':
-        train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("../RCS_nostim/Sleep_spk_200Hz_10s/", 'sleep')
+        train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("../RCS_nostim/finetune_sleep_spk_200Hz_10s/", 'sleep')
         # ch_names = ['LHPC', 'LANT', 'RHPC', 'RANT']
         ch_names = ['FT7', 'FT9', 'FT8', 'FT10']
         args.nb_classes = 3
         metrics = ["accuracy", "balanced_accuracy", "cohen_kappa", "f1_weighted"]
     elif args.dataset == 'RCS-spike':
-        train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("dataset/RCS_nostim/nostim_200Hz_10s/", 'spike')
+        train_dataset, test_dataset, val_dataset = utils.prepare_RCS_dataset("../RCS_nostim/finetune_sleep_spk_200Hz_10s/", 'spike')
         # ch_names = ['LHPC', 'LANT', 'RHPC', 'RANT']
         ch_names = ['FT7', 'FT9', 'FT8', 'FT10']
         args.nb_classes = 4
