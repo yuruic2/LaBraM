@@ -500,7 +500,8 @@ def main(args, ds_init):
             log_writer=log_writer, start_steps=epoch * num_training_steps_per_epoch,
             lr_schedule_values=lr_schedule_values, wd_schedule_values=wd_schedule_values,
             num_training_steps_per_epoch=num_training_steps_per_epoch, update_freq=args.update_freq, 
-            ch_names=ch_names, is_binary=args.nb_classes == 1
+            ch_names=ch_names, is_binary=args.nb_classes == 1,
+            is_regression=args.task == 'regression'
         )
         
         if args.output_dir and args.save_ckpt:

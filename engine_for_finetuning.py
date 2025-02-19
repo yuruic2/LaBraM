@@ -31,7 +31,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     device: torch.device, epoch: int, loss_scaler, max_norm: float = 0,
                     model_ema: Optional[ModelEma] = None, log_writer=None,
                     start_steps=None, lr_schedule_values=None, wd_schedule_values=None,
-                    num_training_steps_per_epoch=None, update_freq=None, ch_names=None, is_binary=True):
+                    num_training_steps_per_epoch=None, update_freq=None, ch_names=None, is_binary=True,
+                    is_regression=False):
     input_chans = None
     if ch_names is not None:
         input_chans = utils.get_input_chans(ch_names)
@@ -113,7 +114,10 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         if is_binary:
             class_acc = utils.get_metrics(torch.sigmoid(output).detach().cpu().numpy(), targets.detach().cpu().numpy(), ["accuracy"], is_binary)["accuracy"]
         else:
-            class_acc = (output.max(-1)[-1] == targets.squeeze()).float().mean()
+            if is_regression:
+                class_acc = (output - targets).abs().mean()
+            else:
+                class_acc = (output.max(-1)[-1] == targets.squeeze()).float().mean()
             
         metric_logger.update(loss=loss_value)
         metric_logger.update(class_acc=class_acc)
