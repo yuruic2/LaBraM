@@ -39,7 +39,23 @@ from sklearn.metrics import mean_squared_error
 from scipy.stats import pearsonr
 
 ################ YC  - 2025/02/19: Add metrics for regression tasks.
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+regress_funcs = {
+    'mse': lambda y_pred, y_true: np.mean((y_true - y_pred) ** 2),
+    'rmse': lambda y_pred, y_true: np.sqrt(np.mean((y_true - y_pred) ** 2)),
+    'mae': lambda y_pred, y_true: np.mean(np.abs(y_true - y_pred)),
+    'r2': lambda y_pred, y_true: 1 - (np.sum((y_true - y_pred) ** 2) / np.sum((y_true - np.mean(y_true)) ** 2))
+}
+
+def regress_metrics_fn(y_pred, y_true, metrics=['mse']):
+    results = {}
+    for mt in metrics:
+        if mt not in regress_funcs:
+            raise ValueError(f"Invalid regression metric: {mt}")
+        func = regress_funcs[mt]
+        results[mt] = func(y_pred, y_true).item()
+
+    return results
 
 standard_1020 = [
     'FP1', 'FPZ', 'FP2', 
@@ -242,7 +258,7 @@ class TensorboardLogger(object):
                 continue
             if isinstance(v, torch.Tensor):
                 v = v.item()
-            assert isinstance(v, (float, int))
+            assert isinstance(v, (float, int)), f'{type(v)}'
             self.writer.add_scalar(head + "/" + k, v, self.step if step is None else step)
     
     def update_image(self, head='images', step=None, **kwargs):
@@ -852,8 +868,13 @@ def prepare_RCS_dataset(root, y_name):
     return train_dataset, test_dataset, val_dataset
 
 
-def get_metrics(output, target, metrics, is_binary, threshold=0.5):
-    if is_binary:
+################ YC  - 2025/02/19: Add metrics for regression tasks.
+def get_metrics(output, target, metrics, is_binary, is_regression, threshold=0.5):
+    if is_regression:
+        results = regress_metrics_fn(
+            target, output, metrics=metrics
+        )
+    elif is_binary:
         if 'roc_auc' not in metrics or sum(target) * (len(target) - sum(target)) != 0:  # to prevent all 0 or all 1 and raise the AUROC error
             results = binary_metrics_fn(
                 target,
@@ -869,14 +890,7 @@ def get_metrics(output, target, metrics, is_binary, threshold=0.5):
                 "roc_auc": 0.0,
             }
     else:
-        ################ YC  - 2025/02/19: Add metrics for regression tasks.
-        if 'mse' in metrics or 'rmse' in metrics or 'mae' in metrics:
-            results = {"mse": mean_squared_error(target, output),
-                       "rmse": mean_squared_error(target, output, squared=False), 
-                       "mae": np.mean(np.abs(target - output)),
-                       "r2": r2_score(target, output)}
-        else:
-            results = multiclass_metrics_fn(
-                target, output, metrics=metrics
-            )
+        results = multiclass_metrics_fn(
+            target, output, metrics=metrics
+        )
     return results

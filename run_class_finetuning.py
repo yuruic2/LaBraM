@@ -476,19 +476,30 @@ def main(args, ds_init):
         optimizer=optimizer, loss_scaler=loss_scaler, model_ema=model_ema)
             
     if args.eval:
-        balanced_accuracy = []
-        accuracy = []
-        for data_loader in data_loader_test:
-            test_stats = evaluate(data_loader, model, device, header='Test:', ch_names=ch_names, metrics=metrics, is_binary=(args.nb_classes == 1))
-            accuracy.append(test_stats['accuracy'])
-            balanced_accuracy.append(test_stats['balanced_accuracy'])
-        print(f"======Accuracy: {np.mean(accuracy)} {np.std(accuracy)}, balanced accuracy: {np.mean(balanced_accuracy)} {np.std(balanced_accuracy)}")
-        exit(0)
+        ################ YC - 2025/02/19: Add loss for regression tasks 
+        if args.task == 'regression':
+            mse, mae = [], []
+            for data_loader in data_loader_test:
+                test_stats = evaluate(data_loader, model, device, header='Test:', ch_names=ch_names, metrics=metrics, is_binary=(args.nb_classes == 1), is_regression=(args.task=='regression'))
+                mse.append(test_stats['mse'])
+                mae.append(test_stats['mae'])
+            print(f"======MSE: {np.mean(mse)} {np.std(mse)}, MAE: {np.mean(mae)} {np.std(mae)}")
+            exit(0)
+        else:
+            balanced_accuracy = []
+            accuracy = []
+            for data_loader in data_loader_test:
+                test_stats = evaluate(data_loader, model, device, header='Test:', ch_names=ch_names, metrics=metrics, is_binary=(args.nb_classes == 1), is_regression=(args.task=='regression'))
+                accuracy.append(test_stats['accuracy'])
+                balanced_accuracy.append(test_stats['balanced_accuracy'])
+            print(f"======Accuracy: {np.mean(accuracy)} {np.std(accuracy)}, balanced accuracy: {np.mean(balanced_accuracy)} {np.std(balanced_accuracy)}")
+            exit(0)
 
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
-    max_accuracy = 0.0
-    max_accuracy_test = 0.0
+    ################ YC - 2025/02/19: Modify metrics to consider regression tasks 
+    best_score = 0.0 if args.task == 'classification' else np.inf
+    best_score_test = 0.0 if args.task == 'classification' else np.inf
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
@@ -508,22 +519,42 @@ def main(args, ds_init):
             utils.save_model(
                 args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                 loss_scaler=loss_scaler, epoch=epoch, model_ema=model_ema, save_ckpt_freq=args.save_ckpt_freq)
-            
+           
+        ################ YC - 2025/02/19: Modify metrics to consider regression tasks
         if data_loader_val is not None:
-            val_stats = evaluate(data_loader_val, model, device, header='Val:', ch_names=ch_names, metrics=metrics, is_binary=args.nb_classes == 1)
-            print(f"Accuracy of the network on the {len(dataset_val)} val EEG: {val_stats['accuracy']:.2f}%")
-            test_stats = evaluate(data_loader_test, model, device, header='Test:', ch_names=ch_names, metrics=metrics, is_binary=args.nb_classes == 1)
-            print(f"Accuracy of the network on the {len(dataset_test)} test EEG: {test_stats['accuracy']:.2f}%")
+            val_stats = evaluate(data_loader_val, model, device, header='Val:', ch_names=ch_names, metrics=metrics, is_binary=args.nb_classes == 1, is_regression=(args.task=='regression'))
+            if args.task == 'regression':
+                print(f"MSE of the network on the {len(dataset_val)} val EEG: {val_stats['mse']:.2f}")
+            else:
+                print(f"Accuracy of the network on the {len(dataset_val)} val EEG: {val_stats['accuracy']:.2f}%")
+            test_stats = evaluate(data_loader_test, model, device, header='Test:', ch_names=ch_names, metrics=metrics, is_binary=args.nb_classes == 1, is_regression=(args.task=='regression'))
+            if args.task == 'regression':
+                print(f"MSE of the network on the {len(dataset_test)} test EEG: {test_stats['mse']:.2f}")
+            else:
+                print(f"Accuracy of the network on the {len(dataset_test)} test EEG: {test_stats['accuracy']:.2f}%")
             
-            if max_accuracy < val_stats["accuracy"]:
-                max_accuracy = val_stats["accuracy"]
-                if args.output_dir and args.save_ckpt:
-                    utils.save_model(
-                        args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                        loss_scaler=loss_scaler, epoch="best", model_ema=model_ema)
-                max_accuracy_test = test_stats["accuracy"]
-
-            print(f'Max accuracy val: {max_accuracy:.2f}%, max accuracy test: {max_accuracy_test:.2f}%')
+            if args.task == 'regression':
+                if best_score > val_stats["mse"]:
+                    best_score = val_stats["mse"]
+                    if args.output_dir and args.save_ckpt:
+                        utils.save_model(
+                            args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
+                            loss_scaler=loss_scaler, epoch="best", model_ema=model_ema)
+                    best_score_test = test_stats["mse"]
+            else:
+                if best_score < val_stats["accuracy"]:
+                    best_score = val_stats["accuracy"]
+                    if args.output_dir and args.save_ckpt:
+                        utils.save_model(
+                            args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
+                            loss_scaler=loss_scaler, epoch="best", model_ema=model_ema)
+                    best_score_test = test_stats["accuracy"]
+            
+            ################ YC - 2025/02/19: Modify metrics to consider regression tasks
+            if args.task == 'regression':
+                print(f'Min MSE val: {best_score:.2f}, min MSE test: {best_score_test:.2f}')
+            else:
+                print(f'Max accuracy val: {best_score:.2f}%, max accuracy test: {best_score_test:.2f}%')
             if log_writer is not None:
                 for key, value in val_stats.items():
                     if key == 'accuracy':
@@ -538,6 +569,14 @@ def main(args, ds_init):
                         log_writer.update(roc_auc=value, head="val", step=epoch)
                     elif key == 'cohen_kappa':
                         log_writer.update(cohen_kappa=value, head="val", step=epoch)
+                    elif key == 'mse':
+                        log_writer.update(mse=value, head="val", step=epoch)
+                    elif key == 'rmse':
+                        log_writer.update(rmse=value, head="val", step=epoch)
+                    elif key == 'mae':
+                        log_writer.update(mae=value, head="val", step=epoch)
+                    elif key == 'r2':
+                        log_writer.update(r2=value, head="val", step=epoch)
                     elif key == 'loss':
                         log_writer.update(loss=value, head="val", step=epoch)
                 for key, value in test_stats.items():
@@ -553,6 +592,14 @@ def main(args, ds_init):
                         log_writer.update(roc_auc=value, head="test", step=epoch)
                     elif key == 'cohen_kappa':
                         log_writer.update(cohen_kappa=value, head="test", step=epoch)
+                    elif key == 'mse':
+                        log_writer.update(mse=value, head="test", step=epoch)
+                    elif key == 'rmse':
+                        log_writer.update(rmse=value, head="test", step=epoch)
+                    elif key == 'mae':
+                        log_writer.update(mae=value, head="test", step=epoch)
+                    elif key == 'r2':
+                        log_writer.update(r2=value, head="test", step=epoch)
                     elif key == 'loss':
                         log_writer.update(loss=value, head="test", step=epoch)
                 

@@ -114,13 +114,17 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         if is_binary:
             class_acc = utils.get_metrics(torch.sigmoid(output).detach().cpu().numpy(), targets.detach().cpu().numpy(), ["accuracy"], is_binary)["accuracy"]
         else:
+            ################ YC - 2025/02/19: Add metrics for regression tasks 
             if is_regression:
-                class_acc = (output - targets).abs().mean()
+                class_acc = ((output - targets) ** 2).float().mean()
             else:
                 class_acc = (output.max(-1)[-1] == targets.squeeze()).float().mean()
             
         metric_logger.update(loss=loss_value)
-        metric_logger.update(class_acc=class_acc)
+        if is_regression:
+            metric_logger.update(mse=class_acc)
+        else:
+            metric_logger.update(class_acc=class_acc)
         metric_logger.update(loss_scale=loss_scale_value)
         min_lr = 10.
         max_lr = 0.
@@ -137,9 +141,13 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.update(weight_decay=weight_decay_value)
         metric_logger.update(grad_norm=grad_norm)
 
+        ################ YC - 2025/02/19: Add loss for regression tasks 
         if log_writer is not None:
             log_writer.update(loss=loss_value, head="loss")
-            log_writer.update(class_acc=class_acc, head="loss")
+            if is_regression:
+                log_writer.update(mse=class_acc, head="loss")
+            else:
+                log_writer.update(class_acc=class_acc, head="loss")
             log_writer.update(loss_scale=loss_scale_value, head="opt")
             log_writer.update(lr=max_lr, head="opt")
             log_writer.update(min_lr=min_lr, head="opt")
@@ -155,11 +163,14 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 
 @torch.no_grad()
-def evaluate(data_loader, model, device, header='Test:', ch_names=None, metrics=['acc'], is_binary=True):
+def evaluate(data_loader, model, device, header='Test:', ch_names=None, metrics=['acc'], is_binary=True, is_regression=False):
     input_chans = None
     if ch_names is not None:
         input_chans = utils.get_input_chans(ch_names)
-    if is_binary:
+    ################ YC - 2025/02/19: Add loss for regression tasks 
+    if is_regression:
+        criterion = torch.nn.MSELoss()
+    elif is_binary:
         criterion = torch.nn.BCEWithLogitsLoss()
     else:
         criterion = torch.nn.CrossEntropyLoss()
@@ -191,7 +202,7 @@ def evaluate(data_loader, model, device, header='Test:', ch_names=None, metrics=
             output = output.cpu()
         target = target.cpu()
 
-        results = utils.get_metrics(output.numpy(), target.numpy(), metrics, is_binary)
+        results = utils.get_metrics(output.numpy(), target.numpy(), metrics, is_binary, is_regression)
         pred.append(output)
         true.append(target)
 
