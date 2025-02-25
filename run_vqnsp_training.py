@@ -147,17 +147,23 @@ def main(args):
     # get dataset
     # datasets with the same montage can be packed within a sublist
     datasets_train = [
-        ["/projects/beav/yuruic2/RCS_nostim/pretrain_200Hz_0.5-70_0.3NA_10s/train"] # e.g., 4 channels for dataset1 and dataset2
+        ["/projects/beav/yuruic2/RCS_nostim/pretrain_200Hz_0.5-70_0.3NA_10s/M1"], 
+        ["/projects/beav/yuruic2/RCS_nostim/pretrain_200Hz_0.5-70_0.3NA_10s/M3"],
+        ["/projects/beav/yuruic2/RCS_nostim/pretrain_200Hz_0.5-70_0.3NA_10s/M4"],
+        ["/projects/beav/yuruic2/RCS_nostim/pretrain_200Hz_0.5-70_0.3NA_10s/M5"] # e.g., 4 channels for dataset1 and dataset2
     ]
     # time window for each sublist in dataset_train
     # to ensure the total sequence length be around 256 for each dataset
     time_window = [
-        64 # set the time window to 4 so that the sequence length is 4 * 64 = 256
+        64, # set the time window to 4 so that the sequence length is 4 * 64 = 256
+        64,
+        64,
+        64
     ]
     dataset_train_list, train_ch_names_list = utils.build_pretraining_dataset(datasets_train, time_window, stride_size=200)
 
     datasets_val = [
-        ["/projects/beav/yuruic2/RCS_nostim/pretrain_200Hz_0.5-70_0.3NA_10s/valid"]
+        ["/projects/beav/yuruic2/RCS_nostim/pretrain_200Hz_0.5-70_0.3NA_10s/M5"]
     ]
     if args.disable_eval:
         dataset_val_list = None

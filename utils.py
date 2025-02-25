@@ -74,6 +74,23 @@ standard_1020 = [
     "FP1-F7", "F7-T7", "T7-P7", "P7-O1", "FP2-F8", "F8-T8", "T8-P8", "P8-O2", "FP1-F3", "F3-C3", "C3-P3", "P3-O1", "FP2-F4", "F4-C4", "C4-P4", "P4-O2"
 ]
 
+region_to_standard1020 = {
+    'LHPC': 'FT7',
+    'RHPC': 'FT8',
+    'LANT': 'FT9',
+    'RANT': 'FT10'
+}
+
+elec_to_region = {
+    'e0-e3': 'LANT',
+    'e1-e3': 'LANT',
+    'e4-e5': 'LHPC',
+    'e4-e7': 'LHPC',
+    'e8-e11': 'RANT',
+    'e12-e13': 'RHPC',
+    'e12-e15': 'RHPC'        
+}
+
 
 def bool_flag(s):
     """
@@ -734,6 +751,8 @@ def get_input_chans(ch_names):
         input_chans.append(standard_1020.index(ch_name) + 1)
     return input_chans
 
+def elec_to_chans(elec):
+    return region_to_standard1020[elec_to_region[elec]]
 
 class TUABLoader(torch.utils.data.Dataset):
     def __init__(self, root, files, sampling_rate=200):

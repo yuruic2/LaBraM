@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from mef_tools.io import MefReader
 
+import utils
 
 list_path = List[Path]
 
@@ -94,8 +95,8 @@ class SingleShockDataset(Dataset):
         param float start_percentage: Index of percentage of the first sample of the dataset in the data file (inclusive)
         param float end_percentage: Index of percentage of end of dataset sample in data file (not included)
         '''
-        self.__file_path = file_path
-        self.__idx_path = file_path.replace('.mefd', '.csv')
+        self.__file_path = str(file_path)
+        self.__idx_path = file_path.with_suffix(".csv")
         self.__window_size = window_size
         self.__stride_size = stride_size
         self.__start_percentage = start_percentage
@@ -106,6 +107,7 @@ class SingleShockDataset(Dataset):
         self.__local_idxes = []
 
         self.__file = None
+        self.__elec_list = None
         self.__channel_list = None
         self.__freq = None
 
@@ -118,9 +120,10 @@ class SingleShockDataset(Dataset):
         self.__file = MefReader(self.__file_path)
         self.__idx_list = pd.read_csv(self.__idx_path)
 
-        self.__channel_list = self.__file.channels
-        self.__freq = self.__file.get_property('fsamp', self.__channel_list[0])
-
+        self.__elec_list = self.__file.channels
+        self.__channel_list = [utils.elec_to_chans(elec) for elec in self.__elec_list]
+        self.__freq = self.__file.get_property('fsamp', self.__elec_list[0])
+        
         global_idx = 0
         for _, row in self.__idx_list.iterrows():
             self.__global_idxes.append(global_idx) # the start index of the subject's sample in the dataset
@@ -153,7 +156,7 @@ class SingleShockDataset(Dataset):
         item_end = int(subject_start + (item_start_idx + self.__window_size) * 1e6 / self.__freq)
 
         data = np.zeros((len(self.__channel_list), self.__window_size))
-        for nch, elec in enumerate(self.__channel_list):
+        for nch, elec in enumerate(self.__elec_list):
             data[nch, :] = self.__file.get_data(elec, item_start, item_end)
 
         # this line convert uV to mV and scale data by 10 to have range (-1, 1)
@@ -174,7 +177,9 @@ class ShockDataset(Dataset):
         '''
         Arguments will be passed to SingleShockDataset. Refer to SingleShockDataset.
         '''
-        self.__file_paths = file_paths
+        ################# YC - 2025/02/21: Modify to gather mefd file in the folder.
+        self.__file_paths = file_paths[0].glob('*.mefd')
+        # self.__file_paths = file_paths
         self.__window_size = window_size
         self.__stride_size = stride_size
         self.__start_percentage = start_percentage
