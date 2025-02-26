@@ -6,3 +6,5 @@ dataset_maker/shock/utils/__pycache__/
 dataset_maker/.DS_Store
 checkpoints/
 log/
+slurm/
+slurm_logs/
